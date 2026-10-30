@@ -1,63 +1,6 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agente 3D</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
-  <body>
-    <div class="page-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">3D PRINT PREP</p>
-          <h1>Agente 3D</h1>
-        </div>
-      </header>
-
-      <main class="panel">
-        <form id="upload-form" enctype="multipart/form-data">
-          <label class="field">
-            <span>Arquivo STL / OBJ / 3MF</span>
-            <input type="file" name="file" id="file" required />
-          </label>
-
-          <div class="row two-col">
-            <label class="field">
-              <span>Material</span>
-              <select name="material" id="material">
-                <option>PLA</option>
-                <option>PETG</option>
-                <option>ABS</option>
-                <option>ASA</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>Nozzle (mm)</span>
-              <input type="number" name="nozzle_mm" id="nozzle_mm" value="0.4" step="0.1" min="0.2" max="0.8" />
-            </label>
-          </div>
-
-          <div class="row two-col">
-            <label class="field">
-              <span>Perfil</span>
-              <select name="profile_name" id="profile_name">
-                <option>Bambu X1C</option>
-                <option>Bambu P1S</option>
-                <option>Bambu A1</option>
-              </select>
-            </label>
-
-            <button type="submit">Validar e preparar</button>
-          </div>
-        </form>
-
-        <section id="summary" class="summary hidden"></section>
-      </main>
-    </div>
-
-    <script src="/static/app.js"></script>
-  </body>
-</html>
-
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+trimesh==4.4.9
+numpy==2.1.3
+jinja2==3.1.4
