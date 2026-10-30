@@ -45,7 +45,7 @@ X2D_PROFILE = {
         "ABS-CF",
         "ASA-CF",
     ],
-    "notes": "Official Bambu Lab X2D reference values: build volume and nozzle specs from the official documentation and user manual PDF.",
+    "notes": "Official Bambu Lab X2D values from the public printer documentation and user manual data.",
 }
 
 __all__ = [
