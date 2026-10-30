@@ -1,352 +1,259 @@
-from __future__ import annotations
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agente 3D</title>
+    <style>
+      :root {
+        --bg: #07151d;
+        --bg-2: #102330;
+        --panel: rgba(18, 35, 44, 0.95);
+        --panel-border: rgba(123, 208, 255, 0.22);
+        --text: #edf8ff;
+        --muted: #a5c4d6;
+        --accent: #1d91ff;
+        --accent-2: #48dbb6;
+        --warn: #ffc76b;
+        --danger: #ff7d7d;
+        --ok: #8af0d8;
+      }
 
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List
+      * { box-sizing: border-box; }
 
-import numpy as np
-import trimesh
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+        color: var(--text);
+      }
 
+      .page-shell {
+        max-width: 1100px;
+        margin: 36px auto;
+        padding: 20px;
+      }
 
-class MeshValidator:
-    """Robust mesh validation and print-preflight diagnostics."""
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 28px;
+      }
 
-    @staticmethod
-    def load_mesh(file_path: str | Path):
-        mesh = trimesh.load(str(file_path), force="mesh", allow_empty=True)
-        if mesh is None:
-            return None
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.4rem;
+        font-weight: 700;
+      }
 
-        if isinstance(mesh, trimesh.Scene):
-            try:
-                mesh = mesh.dump(concatenate=True)
-            except Exception:
-                return None
+      .brand-mark {
+        width: 14px;
+        height: 14px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        border-radius: 4px;
+      }
 
-        if isinstance(mesh, trimesh.Trimesh):
-            return mesh
+      .badge {
+        border: 1px solid var(--panel-border);
+        background: rgba(255,255,255,0.02);
+        color: var(--muted);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+      }
 
-        return None
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 18px;
+        box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+        padding: 28px;
+      }
 
-    @staticmethod
-    def analyze(file_path: str | Path) -> Dict[str, Any]:
-        mesh = MeshValidator.load_mesh(file_path)
+      h1 {
+        margin: 0 0 18px;
+        font-size: clamp(32px, 4vw, 52px);
+      }
 
-        if mesh is None:
-            return {
-                "status": "invalid",
-                "is_watertight": False,
-                "is_manifold": False,
-                "issues": ["Could not load mesh."],
-                "volume": 0.0,
-                "bounds": [0.0, 0.0, 0.0],
-                "face_count": 0,
-                "vertex_count": 0,
-                "extents_mm": [0.0, 0.0, 0.0],
-                "support_risk": 0.0,
-                "warping_risk": 0.0,
-                "adhesion_risk": 0.0,
-                "body_count": 1,
-            }
+      .grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 24px;
+      }
 
-        issues: List[str] = []
-        volume = float(mesh.volume) if np.isfinite(mesh.volume) else 0.0
-        bounds = mesh.bounds.tolist() if hasattr(mesh.bounds, "tolist") else [0.0, 0.0, 0.0]
-        extents = np.array(bounds[1] - bounds[0], dtype=float).tolist()
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
 
-        if mesh.is_watertight is False:
-            issues.append("Mesh is not watertight: open edges or holes detected.")
-        if mesh.is_volume is False:
-            issues.append("Mesh is not manifold / not a solid printable volume.")
-        if mesh.body_count > 1:
-            issues.append("Object contains multiple disconnected bodies. Consider merging or splitting.")
-        if len(mesh.vertices) == 0:
-            issues.append("Mesh has no vertices.")
-        if volume <= 0:
-            issues.append("Volume is zero or invalid.")
-        if max(extents or [0.0, 0.0, 0.0]) < 1e-6:
-            issues.append("Mesh dimensions are degenerate.")
+      label {
+        font-weight: 700;
+        color: #dfefff;
+      }
 
-        face_normals = mesh.face_normals
-        if len(face_normals) > 0:
-            z_component = np.abs(face_normals[:, 2])
-            overhang_ratio = 1.0 - float(np.mean(z_component))
-        else:
-            overhang_ratio = 0.0
+      input, select, button {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid #2d586b;
+        background: #0d1a22;
+        color: var(--text);
+        padding: 12px 14px;
+        font-size: 16px;
+      }
 
-        footprint = float(extents[0] * extents[1]) if len(extents) >= 2 else 0.0
-        max_extent = float(max(extents)) if extents else 0.0
-        height = float(extents[2]) if len(extents) >= 3 else 0.0
-        aspect = float(max_extent / (height if height > 0 else 1.0))
+      button {
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+        border: none;
+        cursor: pointer;
+        font-weight: 800;
+        color: #07151d;
+        min-height: 52px;
+      }
 
-        support_risk = max(0.0, min(1.0, overhang_ratio * 1.2))
-        warping_risk = max(0.0, min(1.0, (footprint / 50000.0) * 0.8 + (max_extent / 250.0) * 0.2))
-        adhesion_risk = max(0.0, min(1.0, (footprint / 50000.0) * 0.6 + (height / 150.0) * 0.4))
+      .result-box {
+        margin-top: 20px;
+        background: rgba(8, 17, 22, 0.92);
+        border: 1px solid rgba(123, 208, 255, 0.22);
+        border-radius: 16px;
+        padding: 20px;
+      }
 
-        if aspect > 10:
-            support_risk = min(1.0, support_risk + 0.15)
-            warping_risk = min(1.0, warping_risk + 0.1)
+      .status {
+        display: inline-block;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 700;
+      }
 
-        return {
-            "status": "ok" if not issues else "warnings",
-            "is_watertight": bool(mesh.is_watertight),
-            "is_manifold": bool(mesh.is_volume),
-            "issues": issues,
-            "volume": float(volume),
-            "bounds": bounds,
-            "face_count": int(len(mesh.faces)),
-            "vertex_count": int(len(mesh.vertices)),
-            "extents_mm": [float(v) for v in extents],
-            "body_count": int(getattr(mesh, "body_count", 1)),
-            "support_risk": round(float(support_risk), 3),
-            "warping_risk": round(float(warping_risk), 3),
-            "adhesion_risk": round(float(adhesion_risk), 3),
-            "overhang_ratio": round(float(overhang_ratio), 3),
+      .status.ready { background: rgba(72, 219, 182, 0.18); color: var(--ok); }
+      .status.review { background: rgba(255, 182, 71, 0.18); color: var(--warn); }
+      .status.repair { background: rgba(255, 93, 93, 0.18); color: var(--danger); }
+
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        padding: 14px;
+        overflow: auto;
+      }
+
+      @media (max-width: 800px) {
+        .grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          <span>Agente 3D</span>
+        </div>
+        <span class="badge">Preflight + validation</span>
+      </header>
+
+      <main class="panel">
+        <h1>Validação de peça 3D</h1>
+
+        <div class="grid">
+          <section>
+            <form id="upload-form" enctype="multipart/form-data">
+              <div class="field">
+                <label for="file">Arquivo 3D</label>
+                <input id="file" name="file" type="file" accept=".stl,.obj,.3mf" required />
+              </div>
+
+              <div class="field">
+                <label for="material">Material</label>
+                <select id="material" name="material">
+                  <option value="PLA">PLA</option>
+                  <option value="PETG">PETG</option>
+                  <option value="ABS">ABS</option>
+                  <option value="ASA">ASA</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="nozzle_mm">Nozzle (mm)</label>
+                <input id="nozzle_mm" name="nozzle_mm" type="number" min="0.2" max="1.0" step="0.1" value="0.4" />
+              </div>
+
+              <div class="field">
+                <label for="profile_name">Perfil</label>
+                <input id="profile_name" name="profile_name" type="text" value="Bambu X1C" />
+              </div>
+
+              <button type="submit">Validar peça</button>
+            </form>
+          </section>
+
+          <section>
+            <div class="result-box" id="result-box">
+              <p>Faça upload de um arquivo STL/OBJ/3MF para validar a sua peça e receber recomendações de impressão.</p>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const form = document.getElementById('upload-form');
+      const resultBox = document.getElementById('result-box');
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+        const fileInput = formData.get('file');
+
+        if (!fileInput || fileInput.name === '') {
+          resultBox.innerHTML = '<p>Selecione um arquivo antes de validar.</p>';
+          return;
         }
 
-    @staticmethod
-    def repair(file_path: str | Path, output_path: str | Path) -> Dict[str, Any]:
-        mesh = MeshValidator.load_mesh(file_path)
-        if mesh is None:
-            return {"status": "failed", "message": "Could not load mesh to repair."}
+        resultBox.innerHTML = '<p>Processando peça...</p>';
 
-        repaired = mesh.copy()
+        try {
+          const response = await fetch('/api/process', {
+            method: 'POST',
+            body: formData
+          });
 
-        try:
-            repaired.remove_unreferenced_vertices()
-        except Exception:
-            pass
+          const data = await response.json();
 
-        try:
-            repaired.merge_vertices()
-        except Exception:
-            pass
+          if (!response.ok) {
+            throw new Error(data.detail || 'Erro ao processar o arquivo.');
+          }
 
-        try:
-            repaired.fix_normals()
-        except Exception:
-            pass
+          const statusClass = data.is_ready ? 'ready' : data.checks?.status === 'REVIEW_REQUIRED' ? 'review' : 'repair';
 
-        try:
-            if not repaired.is_watertight:
-                repaired = repaired.fill_holes()
-        except Exception:
-            pass
-
-        if repaired.is_watertight is False:
-            try:
-                repaired = repaired.process(validate=True)
-            except Exception:
-                pass
-
-        try:
-            repaired.export(str(output_path))
-        except Exception:
-            alt = Path(str(output_path)).with_suffix(".stl")
-            repaired.export(str(alt))
-            return {"status": "ok", "analysis": MeshValidator.analyze(alt), "output": str(alt)}
-
-        analysis = MeshValidator.analyze(output_path)
-        return {
-            "status": "ok" if analysis["status"] != "invalid" else "warning",
-            "analysis": analysis,
-            "output": str(output_path),
+          resultBox.innerHTML = `
+            <span class="status ${statusClass}">${data.checks?.status || 'PROCESSADO'}</span>
+            <h3>Resultado da análise</h3>
+            <p><strong>Arquivo:</strong> ${data.file_name}</p>
+            <p><strong>Score:</strong> ${data.checks?.printability_score ?? 'n/a'}</p>
+            <p><strong>Perfil:</strong> ${data.profile?.material || 'N/A'} / ${data.profile?.machine || 'N/A'}</p>
+            <h4>Recomendações</h4>
+            <ul>
+              ${(data.recommendations || []).map(item => `<li>${item}</li>`).join('') || '<li>Nenhuma recomendação adicional.</li>'}
+            </ul>
+            <h4>Detalhes</h4>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        } catch (error) {
+          resultBox.innerHTML = `<p>Erro: ${error.message}</p>`;
         }
-
-
-class BambuRules:
-    """Material presets and preflight heuristics for Bambu-compatible workflows."""
-
-    MATERIALS = {
-        "PLA": {
-            "nozzle_temp_c": 215,
-            "bed_temp_c": 60,
-            "flow_ratio": 1.0,
-            "speed_mult": 1.0,
-            "supports": "tree",
-            "layer_height": 0.2,
-            "min_wall_thickness": 0.45,
-            "min_feature_size": 0.8,
-            "notes": "Balanced material for prototypes and detailed prints."
-        },
-        "PETG": {
-            "nozzle_temp_c": 240,
-            "bed_temp_c": 80,
-            "flow_ratio": 1.06,
-            "speed_mult": 0.9,
-            "supports": "tree",
-            "layer_height": 0.2,
-            "min_wall_thickness": 0.55,
-            "min_feature_size": 1.0,
-            "notes": "Use lower speed and stronger cooling path."
-        },
-        "ABS": {
-            "nozzle_temp_c": 250,
-            "bed_temp_c": 100,
-            "flow_ratio": 1.08,
-            "speed_mult": 0.8,
-            "supports": "tree",
-            "layer_height": 0.2,
-            "min_wall_thickness": 0.6,
-            "min_feature_size": 1.1,
-            "notes": "Needs chamber and good bed adhesion."
-        },
-        "ASA": {
-            "nozzle_temp_c": 255,
-            "bed_temp_c": 100,
-            "flow_ratio": 1.09,
-            "speed_mult": 0.8,
-            "supports": "tree",
-            "layer_height": 0.2,
-            "min_wall_thickness": 0.6,
-            "min_feature_size": 1.1,
-            "notes": "Good for outdoor use; control thermal shrink."
-        },
-    }
-
-    @staticmethod
-    def choose_profile(material: str, nozzle_mm: float, profile_name: str = "Bambu X1C") -> Dict[str, Any]:
-        material_key = str(material).upper()
-        base = BambuRules.MATERIALS.get(material_key, BambuRules.MATERIALS["PLA"])
-
-        if nozzle_mm <= 0.4:
-            layer_height = 0.2
-        elif nozzle_mm <= 0.6:
-            layer_height = 0.28
-        else:
-            layer_height = 0.32
-
-        return {
-            "machine": profile_name,
-            "material": material_key,
-            "nozzle_mm": float(nozzle_mm),
-            "layer_height_mm": float(layer_height),
-            "nozzle_temp_c": int(base["nozzle_temp_c"]),
-            "bed_temp_c": int(base["bed_temp_c"]),
-            "flow_ratio": float(base["flow_ratio"]),
-            "speed_multiplier": float(base["speed_mult"]),
-            "supports": base["supports"],
-            "min_wall_thickness_mm": float(base["min_wall_thickness"]),
-            "min_feature_size_mm": float(base["min_feature_size"]),
-            "notes": base["notes"],
-        }
-
-    @staticmethod
-    def build_print_report(analysis: Dict[str, Any], material: str, nozzle_mm: float, profile_name: str = "Bambu X1C") -> Dict[str, Any]:
-        profile = BambuRules.choose_profile(material, nozzle_mm, profile_name)
-        issues: List[str] = []
-        recommendations: List[str] = []
-        score = 100
-
-        if not analysis.get("is_watertight", False):
-            score -= 35
-            issues.append("Model is not watertight.")
-            recommendations.append("Repair holes and open edges before printing.")
-
-        if not analysis.get("is_manifold", False):
-            score -= 25
-            issues.append("Model is not manifold.")
-            recommendations.append("Run mesh repair or boolean union to make it a solid volume.")
-
-        if float(analysis.get("volume", 0.0)) <= 0:
-            score -= 20
-            issues.append("Volume is invalid.")
-            recommendations.append("Check if the mesh is loaded with correct dimensions and orientation.")
-
-        support_risk = float(analysis.get("support_risk", 0.0))
-        warping_risk = float(analysis.get("warping_risk", 0.0))
-        adhesion_risk = float(analysis.get("adhesion_risk", 0.0))
-
-        if support_risk > 0.5:
-            score -= 15
-            recommendations.append("High overhang to support risk: validate support placement and consider changing part orientation.")
-
-        if warping_risk > 0.6:
-            score -= 10
-            recommendations.append("High warping risk: increase brim/raft, lower fan or use enclosure depending on material.")
-
-        if adhesion_risk > 0.7:
-            score -= 10
-            recommendations.append("High bed adhesion risk: use brim or increase first-layer contact area.")
-
-        extents = analysis.get("extents_mm", [0.0, 0.0, 0.0])
-        if max(extents or [0.0, 0.0, 0.0]) > 250:
-            recommendations.append("Large part: consider splitting into sections to improve stability and support behavior.")
-
-        if analysis.get("body_count", 1) > 1:
-            score -= 10
-            recommendations.append("Multiple bodies detected; merge or isolate them before final slicing.")
-
-        if score < 70:
-            status = "NEEDS_REPAIR"
-        elif score < 90:
-            status = "REVIEW_REQUIRED"
-        else:
-            status = "READY_FOR_REVIEW"
-
-        return {
-            "status": status,
-            "printability_score": max(0, min(100, int(score))),
-            "profile": profile,
-            "issues": issues,
-            "recommendations": recommendations,
-            "summary": {
-                "volume_mm3": round(float(analysis.get("volume", 0.0)), 3),
-                "face_count": int(analysis.get("face_count", 0)),
-                "vertex_count": int(analysis.get("vertex_count", 0)),
-                "bounds_mm": analysis.get("bounds", [0.0, 0.0, 0.0]),
-                "extents_mm": analysis.get("extents_mm", [0.0, 0.0, 0.0]),
-                "support_risk": round(float(support_risk), 3),
-                "warping_risk": round(float(warping_risk), 3),
-                "adhesion_risk": round(float(adhesion_risk), 3),
-            },
-        }
-
-
-class PrintPackageBuilder:
-    """Generate a print-prep package that can be reviewed before slicing."""
-
-    @staticmethod
-    def build_manifest(file_name: str, analysis: Dict[str, Any], print_report: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            "package_name": file_name,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "model_summary": {
-                "volume_mm3": round(float(analysis.get("volume", 0.0)), 3),
-                "vertex_count": int(analysis.get("vertex_count", 0)),
-                "face_count": int(analysis.get("face_count", 0)),
-                "bounds_mm": analysis.get("bounds", [0.0, 0.0, 0.0]),
-                "extents_mm": analysis.get("extents_mm", [0.0, 0.0, 0.0]),
-                "is_watertight": bool(analysis.get("is_watertight", False)),
-                "is_manifold": bool(analysis.get("is_manifold", False)),
-            },
-            "bambu_profile": print_report["profile"],
-            "printability": {
-                "score": print_report["printability_score"],
-                "status": print_report["status"],
-                "issues": print_report["issues"],
-                "recommendations": print_report["recommendations"],
-                "risk_summary": {
-                    "support_risk": print_report["summary"]["support_risk"],
-                    "warping_risk": print_report["summary"]["warping_risk"],
-                    "adhesion_risk": print_report["summary"]["adhesion_risk"],
-                },
-            },
-            "notes": [
-                "This manifest is a pre-flight validation package for Bambu Studio.",
-                "The final slicing and G-code generation still happens in the official Bambu Studio slicer.",
-                "Use the profile and recommendations only as a preparation layer before sending to the printer."
-            ],
-        }
-
-    @staticmethod
-    def write_manifest(path: str | Path, payload: Dict[str, Any]) -> str:
-        out = Path(path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-        return str(out)
-
-
-__all__ = ["MeshValidator", "BambuRules", "PrintPackageBuilder"]
-
+      });
+    </script>
+  </body>
+</html>
