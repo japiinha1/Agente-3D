@@ -53,11 +53,15 @@
           </div>
         </form>
 
+        <section class="preview-panel">
+          <div id="preview-container"></div>
+        </section>
+
         <section id="summary" class="summary hidden"></section>
       </main>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script type="module" src="/static/app.js"></script>
   </body>
 </html>
 

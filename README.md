@@ -44,12 +44,16 @@ class MeshValidator:
                 "face_count": 0,
                 "vertex_count": 0,
                 "extents_mm": [0.0, 0.0, 0.0],
+                "support_risk": 0.0,
+                "warping_risk": 0.0,
+                "adhesion_risk": 0.0,
+                "body_count": 1,
             }
 
         issues: List[str] = []
         volume = float(mesh.volume) if np.isfinite(mesh.volume) else 0.0
         bounds = mesh.bounds.tolist() if hasattr(mesh.bounds, "tolist") else [0.0, 0.0, 0.0]
-        extents = np.abs(np.diff(bounds, axis=0)[0]).tolist() if isinstance(bounds, list) else [0.0, 0.0, 0.0]
+        extents = np.array(bounds[1] - bounds[0], dtype=float).tolist()
 
         if mesh.is_watertight is False:
             issues.append("Mesh is not watertight: open edges or holes detected.")
@@ -65,6 +69,28 @@ class MeshValidator:
         if max(extents or [0.0, 0.0, 0.0]) < 1e-6:
             issues.append("Mesh dimensions are degenerate.")
 
+        # Overhang + support heuristics based on face normals.
+        face_normals = mesh.face_normals
+        if len(face_normals) > 0:
+            z_component = np.abs(face_normals[:, 2])
+            overhang_ratio = 1.0 - float(np.mean(z_component))
+        else:
+            overhang_ratio = 0.0
+
+        # Printing risk heuristics.
+        footprint = float(extents[0] * extents[1]) if len(extents) >= 2 else 0.0
+        max_extent = float(max(extents)) if extents else 0.0
+        height = float(extents[2]) if len(extents) >= 3 else 0.0
+        aspect = float(max_extent / (height if height > 0 else 1.0))
+
+        support_risk = max(0.0, min(1.0, overhang_ratio * 1.2))
+        warping_risk = max(0.0, min(1.0, (footprint / 50000.0) * 0.8 + (max_extent / 250.0) * 0.2))
+        adhesion_risk = max(0.0, min(1.0, (footprint / 50000.0) * 0.6 + (height / 150.0) * 0.4))
+
+        if aspect > 10:
+            support_risk = min(1.0, support_risk + 0.15)
+            warping_risk = min(1.0, warping_risk + 0.1)
+
         return {
             "status": "ok" if not issues else "warnings",
             "is_watertight": bool(mesh.is_watertight),
@@ -76,6 +102,10 @@ class MeshValidator:
             "vertex_count": int(len(mesh.vertices)),
             "extents_mm": [float(v) for v in extents],
             "body_count": int(getattr(mesh, "body_count", 1)),
+            "support_risk": round(float(support_risk), 3),
+            "warping_risk": round(float(warping_risk), 3),
+            "adhesion_risk": round(float(adhesion_risk), 3),
+            "overhang_ratio": round(float(overhang_ratio), 3),
         }
 
     @staticmethod
@@ -92,6 +122,11 @@ class MeshValidator:
             pass
 
         try:
+            repaired.merge_vertices()
+        except Exception:
+            pass
+
+        try:
             repaired.fix_normals()
         except Exception:
             pass
@@ -101,6 +136,12 @@ class MeshValidator:
                 repaired = repaired.fill_holes()
         except Exception:
             pass
+
+        if repaired.is_watertight is False:
+            try:
+                repaired = repaired.process(validate=True)
+            except Exception:
+                pass
 
         try:
             repaired.export(str(output_path))
@@ -118,7 +159,7 @@ class MeshValidator:
 
 
 class BambuRules:
-    """Material presets and printability heuristics for Bambu-compatible workflows."""
+    """Material presets and preflight heuristics for Bambu-compatible workflows."""
 
     MATERIALS = {
         "PLA": {
@@ -199,7 +240,6 @@ class BambuRules:
         profile = BambuRules.choose_profile(material, nozzle_mm, profile_name)
         issues: List[str] = []
         recommendations: List[str] = []
-
         score = 100
 
         if not analysis.get("is_watertight", False):
@@ -217,18 +257,29 @@ class BambuRules:
             issues.append("Volume is invalid.")
             recommendations.append("Check if the mesh is loaded with correct dimensions and orientation.")
 
+        support_risk = float(analysis.get("support_risk", 0.0))
+        warping_risk = float(analysis.get("warping_risk", 0.0))
+        adhesion_risk = float(analysis.get("adhesion_risk", 0.0))
+
+        if support_risk > 0.5:
+            score -= 15
+            recommendations.append("High overhang to support risk: validate support placement and consider changing part orientation.")
+
+        if warping_risk > 0.6:
+            score -= 10
+            recommendations.append("High warping risk: increase brim/raft, lower fan or use enclosure depending on material.")
+
+        if adhesion_risk > 0.7:
+            score -= 10
+            recommendations.append("High bed adhesion risk: use brim or increase first-layer contact area.")
+
         extents = analysis.get("extents_mm", [0.0, 0.0, 0.0])
         if max(extents or [0.0, 0.0, 0.0]) > 250:
-            recommendations.append("Large part: consider splitting into sections to improve dimensional stability and support behavior.")
+            recommendations.append("Large part: consider splitting into sections to improve stability and support behavior.")
 
         if analysis.get("body_count", 1) > 1:
             score -= 10
             recommendations.append("Multiple bodies detected; merge or isolate them before final slicing.")
-
-        # heuristics for thin-wall and fragile geometry
-        if max(extents or [0.0, 0.0, 0.0]) > 0 and profile["min_wall_thickness_mm"] > 0:
-            if max(extents) < 6:
-                recommendations.append("Small part: verify nozzle and wall thickness are compatible with the chosen nozzle size.")
 
         if score < 70:
             status = "NEEDS_REPAIR"
@@ -249,12 +300,15 @@ class BambuRules:
                 "vertex_count": int(analysis.get("vertex_count", 0)),
                 "bounds_mm": analysis.get("bounds", [0.0, 0.0, 0.0]),
                 "extents_mm": analysis.get("extents_mm", [0.0, 0.0, 0.0]),
+                "support_risk": round(float(support_risk), 3),
+                "warping_risk": round(float(warping_risk), 3),
+                "adhesion_risk": round(float(adhesion_risk), 3),
             },
         }
 
 
 class PrintPackageBuilder:
-    """Generate a print-prep manifest that can be reviewed before slicing."""
+    """Generate a print-prep package that can be reviewed before slicing."""
 
     @staticmethod
     def build_manifest(file_name: str, analysis: Dict[str, Any], print_report: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,6 +330,11 @@ class PrintPackageBuilder:
                 "status": print_report["status"],
                 "issues": print_report["issues"],
                 "recommendations": print_report["recommendations"],
+                "risk_summary": {
+                    "support_risk": print_report["summary"]["support_risk"],
+                    "warping_risk": print_report["summary"]["warping_risk"],
+                    "adhesion_risk": print_report["summary"]["adhesion_risk"],
+                },
             },
             "notes": [
                 "This manifest is a pre-flight validation package for Bambu Studio.",

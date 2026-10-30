@@ -10,7 +10,7 @@ body {
 }
 
 .page-shell {
-  max-width: 980px;
+  max-width: 1080px;
   margin: 48px auto;
   padding: 20px;
 }
@@ -82,6 +82,27 @@ button {
 
 .two-col > * {
   flex: 1;
+}
+
+.preview-panel {
+  margin-top: 18px;
+  margin-bottom: 18px;
+  background: rgba(8, 18, 24, 0.9);
+  border: 1px solid rgba(123, 208, 255, 0.2);
+  border-radius: 18px;
+  overflow: hidden;
+  min-height: 360px;
+}
+
+#preview-container {
+  width: 100%;
+  min-height: 360px;
+}
+
+#preview-container canvas {
+  display: block;
+  width: 100%;
+  height: 360px;
 }
 
 .summary {

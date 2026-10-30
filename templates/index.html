@@ -4,7 +4,7 @@ Sistema web para validação geométrica, reparo de malha e preparação de perf
 
 ## Objetivo
 
-Este projeto foi pensado como uma camada de validação e préespera para impressão 3D, com foco em workflows compatíveis com Bambu Studio.
+Este projeto foi pensado como uma camada de validação e pré-espelhamento para impressão 3D, com foco em workflows compatíveis com Bambu Studio.
 
 Ele ajuda em:
 
@@ -14,10 +14,12 @@ Ele ajuda em:
 - diagnóstico de watertightness e manifold
 - proposta de perfil de impressão para PLA/PETG/ABS/ASA
 - geração de manifesto de impressão e checklist final
+- análise de risco de overhang, warping e aderência
+- export de pacote de preparação em 3MF quando suportado pelo mesh
 
 ## Importante
 
-Esse projeto não substitui o Bambu Studio como slicer principal. Ele é um pré-processador, validador e gerente de preparação. Para o arquivo final de impressão, o fluxo real continua sendo:
+Esse projeto não substitui o Bambu Studio como slicer principal. Ele é um pré-processador, validador e gestor de preparação. Para o arquivo final de impressão, o fluxo real continua sendo:
 
 1. validar modelo
 2. corrigir a geometria
@@ -30,7 +32,7 @@ Esse projeto não substitui o Bambu Studio como slicer principal. Ele é um pré
 - `app.py` - API FastAPI
 - `src/mesh_validator.py` - validação geométrica, regras de impressão e manifest
 - `templates/` - frontend web
-- `static/` - CSS/JS
+- `static/` - CSS/JS para visualização e painel
 - `output/uploads` - arquivos enviados e manifests gerados
 
 ## Executar localmente
@@ -68,12 +70,14 @@ curl http://localhost:8000/api/manifest/modelo
 
 - modelos com malha não fechada devem ser reparados antes da impressão
 - perfis reais dependem de nozzle, material, ambiente e máquina
+- risco de warping e aderência deve ser revisado antes do envio ao equipamento
 - Bambu Studio continua sendo a fonte final para fatiamento e envio ao equipamento
 
 ## Melhorias futuras
 
-- export direto em 3MF
-- integração com fatiador local
-- visualização 3D interativa no navegador
-- maior camada de heurísticas para overhang, supports e warping
+- export direto em 3MF com maior robustez para formatos específicos
+- integração com slicer local
+- visualização 3D interativa em navegador
+- heurísticas refinadas para overhang, supports e warping
+- painel técnico em português e relatório final mais detalhado
 
