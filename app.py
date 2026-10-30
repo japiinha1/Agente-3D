@@ -44,54 +44,59 @@ async def process_model(
     file: UploadFile = File(...),
     material: str = Form("PLA"),
     nozzle_mm: float = Form(0.4),
-    profile_name: str = Form("Bambu X1C"),
+    profile_name: str = Form("Bambu X2D"),
 ):
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Arquivo obrigatório.")
+    try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Arquivo obrigatório.")
 
-    ext = Path(file.filename).suffix.lower()
-    if ext not in {".stl", ".obj", ".3mf"}:
-        raise HTTPException(status_code=400, detail="Formato inválido. Use STL, OBJ ou 3MF.")
+        ext = Path(file.filename).suffix.lower()
+        if ext not in {".stl", ".obj", ".3mf"}:
+            raise HTTPException(status_code=400, detail="Formato inválido. Use STL, OBJ ou 3MF.")
 
-    upload_dir = OUTPUT_DIR / "uploads"
-    upload_dir.mkdir(parents=True, exist_ok=True)
+        upload_dir = OUTPUT_DIR / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
 
-    original_path = upload_dir / f"original_{file.filename}"
-    original_bytes = await file.read()
-    original_path.write_bytes(original_bytes)
+        original_path = upload_dir / f"original_{file.filename}"
+        original_bytes = await file.read()
+        original_path.write_bytes(original_bytes)
 
-    analysis = MeshValidator.analyze(original_path)
-    repaired_path = None
+        analysis = MeshValidator.analyze(original_path)
+        repaired_path = None
 
-    if not analysis.get("is_watertight", False) or not analysis.get("is_manifold", False):
-        repaired_name = f"repaired_{Path(file.filename).stem}.stl"
-        repaired_path = upload_dir / repaired_name
-        repair_result = MeshValidator.repair(original_path, repaired_path)
-        if repair_result.get("status") == "ok":
-            analysis = repair_result["analysis"]
-        else:
-            repaired_path = None
+        if not analysis.get("is_watertight", False) or not analysis.get("is_manifold", False):
+            repaired_name = f"repaired_{Path(file.filename).stem}.stl"
+            repaired_path = upload_dir / repaired_name
+            repair_result = MeshValidator.repair(original_path, repaired_path)
+            if repair_result.get("status") == "ok":
+                analysis = repair_result["analysis"]
+            else:
+                repaired_path = None
 
-    config = BambuRules.choose_profile(material, nozzle_mm, profile_name)
-    checks = BambuRules.build_print_report(analysis, material, nozzle_mm, profile_name)
-    manifest = PrintPackageBuilder.build_manifest(file.filename, analysis, checks)
-    manifest_path = upload_dir / f"{Path(file.filename).stem}_manifest.json"
-    PrintPackageBuilder.write_manifest(manifest_path, manifest)
+        config = BambuRules.choose_profile(material, nozzle_mm, profile_name)
+        checks = BambuRules.build_print_report(analysis, material, nozzle_mm, profile_name)
+        manifest = PrintPackageBuilder.build_manifest(file.filename, analysis, checks)
+        manifest_path = upload_dir / f"{Path(file.filename).stem}_manifest.json"
+        PrintPackageBuilder.write_manifest(manifest_path, manifest)
 
-    response = {
-        "status": "processed",
-        "file_name": file.filename,
-        "material": material,
-        "profile": config,
-        "analysis": analysis,
-        "checks": checks,
-        "manifest_path": str(manifest_path),
-        "repaired_file": str(repaired_path) if repaired_path else None,
-        "recommendations": checks["recommendations"],
-        "is_ready": checks["status"] == "READY_FOR_REVIEW",
-    }
+        response = {
+            "status": "processed",
+            "file_name": file.filename,
+            "material": material,
+            "profile": config,
+            "analysis": analysis,
+            "checks": checks,
+            "manifest_path": str(manifest_path),
+            "repaired_file": str(repaired_path) if repaired_path else None,
+            "recommendations": checks["recommendations"],
+            "is_ready": checks["status"] == "READY_FOR_REVIEW",
+        }
 
-    return JSONResponse(content=response)
+        return JSONResponse(content=response)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro interno ao processar o arquivo: {exc}") from exc
 
 
 @app.get("/api/manifest/{name}")
