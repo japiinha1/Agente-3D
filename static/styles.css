@@ -1,75 +1,69 @@
-# Agente 3D
+const form = document.getElementById('upload-form');
+const summary = document.getElementById('summary');
 
-Sistema web para validação geométrica, reparo automático de malha e preparação de pacote de impressão com foco em perfis Bambu Studio.
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
 
-## Objetivo
+  const formData = new FormData(form);
+  const fileInput = document.getElementById('file');
 
-Esse projeto automatiza a etapa inicial da preparação de modelos 3D para impressão:
+  if (!fileInput.files.length) {
+    alert('Selecione um arquivo antes de continuar.');
+    return;
+  }
 
-- validação do modelo 3D
-- diagnóstico de watertightness/manifold
-- heurísticas de reparo básico
-- configuração de perfil Bambu (PLA/PETG/ABS/ASA)
-- geração de manifesto de impressão
-- prontos para envio ao fatiador final
+  summary.classList.remove('hidden');
+  summary.innerHTML = '<p>Validando geometria do modelo e montando checklist de impressão...</p>';
 
-## O que ele faz
+  const response = await fetch('/api/process', {
+    method: 'POST',
+    body: formData,
+  });
 
-- aceita arquivo STL, OBJ ou 3MF
-- analisa a malha com `trimesh`
-- tenta reparar falhas de geometria
-- calcula volume e limites da peça
-- gera recomendações de impressão e perfil Bambu
-- exporta um `manifest.json` com configurações e recomendações
+  const data = await response.json();
 
-## Importante
+  if (!response.ok) {
+    summary.innerHTML = `<h2>Erro</h2><p>${data.detail || 'Falha ao processar o arquivo.'}</p>`;
+    return;
+  }
 
-Este projeto NÃO substitui o Bambu Studio oficial como fatiador final.
-Ele produz uma camada de validação, reparo e preparação de configuração compatível com perfis de impressora. Para a etapa final de slicing, o arquivo deve ser aberto no Bambu Studio e enviado para a impressora usando os parâmetros gerados.
+  const status = data.print_report.status;
+  const score = data.print_report.printability_score;
 
-## Estrutura
+  summary.innerHTML = `
+    <h2>Resumo da validação</h2>
+    <div class="status-row">
+      <span class="badge ${status.toLowerCase()}">${status}</span>
+      <span class="score">Score: ${score}/100</span>
+    </div>
+    <p><strong>Arquivo:</strong> ${data.file_name}</p>
+    <p><strong>Material:</strong> ${data.material}</p>
+    <p><strong>Perfil:</strong> ${data.print_report.profile.machine}</p>
 
-- `app.py` - aplicação FastAPI
-- `src/mesh_validator.py` - análise geométrica e regras de impressão
-- `static/` - front-end web
-- `templates/` - UI da aplicação
-- `output/` - arquivos de processamento e manifests
+    <h3>Geometria</h3>
+    <ul>
+      <li>Watertight: ${data.analysis.is_watertight}</li>
+      <li>Manifold: ${data.analysis.is_manifold}</li>
+      <li>Volume: ${Number(data.analysis.volume).toFixed(3)} mm³</li>
+      <li>Faces: ${data.analysis.face_count}</li>
+      <li>Vertices: ${data.analysis.vertex_count}</li>
+      <li>Extents: ${JSON.stringify(data.analysis.extents_mm)}</li>
+    </ul>
 
-## Como rodar
+    <h3>Checklist de impressão</h3>
+    <ul>
+      ${data.print_report.issues.length ? data.print_report.issues.map((item) => `<li>${item}</li>`).join('') : '<li>Nenhum problema crítico detectado.</li>'}
+    </ul>
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-```
+    <h3>Recomendações</h3>
+    <ul>
+      ${data.print_report.recommendations.length ? data.print_report.recommendations.map((item) => `<li>${item}</li>`).join('') : '<li>Sem recomendações extras.</li>'}
+    </ul>
 
-Acesse:
+    <h3>Perfil Bambu recomendado</h3>
+    <pre>${JSON.stringify(data.print_report.profile, null, 2)}</pre>
 
-- `http://localhost:8000`
-
-## API
-
-### Upload + processamento
-
-```bash
-curl -X POST "http://localhost:8000/api/process" \
-  -F "file=@modelo.stl" \
-  -F "material=PLA" \
-  -F "nozzle_mm=0.4" \
-  -F "profile_name=Bambu X1C"
-```
-
-## Observações reais de impressão
-
-- partes com malha não fechada devem ser reparadas antes de imprimir
-- perfis reais dependem da impressora, material, nozzle e ambiente
-- um arquivo em 3MF compatível com Bambu Studio ainda exige ajuste final manual
-
-## Futuras evoluções
-
-- integração com slicer real via CLI e API local
-- visualização 3D em navegador
-- export direto de pacote `.3mf`
-- agente MCP para outros fluxos de automação
+    <p><strong>Manifesto:</strong> ${data.manifest_path}</p>
+  `;
+});
 

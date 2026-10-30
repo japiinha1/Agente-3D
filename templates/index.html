@@ -1,53 +1,79 @@
-const form = document.getElementById('upload-form');
-const summary = document.getElementById('summary');
+# Agente 3D Pro
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
+Sistema web para validação geométrica, reparo de malha e preparação de perfil antes do envio ao Bambu Studio.
 
-  const formData = new FormData(form);
-  const fileInput = document.getElementById('file');
+## Objetivo
 
-  if (!fileInput.files.length) {
-    alert('Selecione um arquivo.');
-    return;
-  }
+Este projeto foi pensado como uma camada de validação e préespera para impressão 3D, com foco em workflows compatíveis com Bambu Studio.
 
-  summary.classList.remove('hidden');
-  summary.innerHTML = '<p>Validando arquivo e preparando pacote de impressão...</p>';
+Ele ajuda em:
 
-  const response = await fetch('/api/process', {
-    method: 'POST',
-    body: formData,
-  });
+- validação de malha 3D
+- detecção de falhas em geometria
+- cálculo de volume, limites e extents
+- diagnóstico de watertightness e manifold
+- proposta de perfil de impressão para PLA/PETG/ABS/ASA
+- geração de manifesto de impressão e checklist final
 
-  const data = await response.json();
+## Importante
 
-  if (!response.ok) {
-    summary.innerHTML = `<h2>Erro</h2><p>${data.detail || 'Falha ao processar o arquivo.'}</p>`;
-    return;
-  }
+Esse projeto não substitui o Bambu Studio como slicer principal. Ele é um pré-processador, validador e gerente de preparação. Para o arquivo final de impressão, o fluxo real continua sendo:
 
-  const readyText = data.is_ready ? 'Pronto para revisão no Bambu Studio' : 'Requer revisão antes da impressão';
+1. validar modelo
+2. corrigir a geometria
+3. preparar perfil do material
+4. abrir arquivo no Bambu Studio
+5. ajustar slicer final e gerar o G-code
 
-  summary.innerHTML = `
-    <h2>Resumo do processamento</h2>
-    <p><strong>Status:</strong> ${readyText}</p>
-    <p><strong>Material:</strong> ${data.material}</p>
-    <p><strong>Perfil:</strong> ${data.profile.machine}</p>
-    <h3>Geometria</h3>
-    <ul>
-      <li>Watertight: ${data.analysis.is_watertight}</li>
-      <li>Manifold: ${data.analysis.is_manifold}</li>
-      <li>Volume: ${data.analysis.volume}</li>
-      <li>Faces: ${data.analysis.face_count}</li>
-    </ul>
-    <h3>Recomendações</h3>
-    <ul>
-      ${data.checks.recommendations.map((item) => `<li>${item}</li>`).join('') || '<li>Sem recomendações específicas.</li>'}
-    </ul>
-    <h3>Configuração Bambu</h3>
-    <pre>${JSON.stringify(data.profile, null, 2)}</pre>
-    <p><strong>Manifesto:</strong> ${data.manifest_path}</p>
-  `;
-});
+## Estrutura do projeto
+
+- `app.py` - API FastAPI
+- `src/mesh_validator.py` - validação geométrica, regras de impressão e manifest
+- `templates/` - frontend web
+- `static/` - CSS/JS
+- `output/uploads` - arquivos enviados e manifests gerados
+
+## Executar localmente
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Acesse:
+
+- http://localhost:8000
+
+## API
+
+### Processar um arquivo
+
+```bash
+curl -X POST "http://localhost:8000/api/process" \
+  -F "file=@modelo.stl" \
+  -F "material=PLA" \
+  -F "nozzle_mm=0.4" \
+  -F "profile_name=Bambu X1C"
+```
+
+### Obter manifest
+
+```bash
+curl http://localhost:8000/api/manifest/modelo
+```
+
+## Regras de uso
+
+- modelos com malha não fechada devem ser reparados antes da impressão
+- perfis reais dependem de nozzle, material, ambiente e máquina
+- Bambu Studio continua sendo a fonte final para fatiamento e envio ao equipamento
+
+## Melhorias futuras
+
+- export direto em 3MF
+- integração com fatiador local
+- visualização 3D interativa no navegador
+- maior camada de heurísticas para overhang, supports e warping
 

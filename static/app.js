@@ -1,99 +1,63 @@
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: linear-gradient(180deg, #08181f 0%, #0d1d27 100%);
-  color: #ecf5ff;
-}
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agente 3D Pro</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <p class="eyebrow">3D PRINT PRE-FLIGHT</p>
+          <h1>Agente 3D Pro</h1>
+        </div>
+      </header>
 
-.page-shell {
-  max-width: 960px;
-  margin: 48px auto;
-  padding: 20px;
-}
+      <main class="panel">
+        <form id="upload-form" enctype="multipart/form-data">
+          <label class="field">
+            <span>Arquivo STL / OBJ / 3MF</span>
+            <input type="file" name="file" id="file" required />
+          </label>
 
-.topbar {
-  margin-bottom: 20px;
-}
+          <div class="row two-col">
+            <label class="field">
+              <span>Material</span>
+              <select name="material" id="material">
+                <option>PLA</option>
+                <option>PETG</option>
+                <option>ABS</option>
+                <option>ASA</option>
+              </select>
+            </label>
 
-.eyebrow {
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 12px;
-  color: #7bc5ff;
-  margin: 0;
-}
+            <label class="field">
+              <span>Nozzle (mm)</span>
+              <input type="number" name="nozzle_mm" id="nozzle_mm" value="0.4" step="0.1" min="0.2" max="0.8" />
+            </label>
+          </div>
 
-h1 {
-  margin: 8px 0 0;
-  font-size: 42px;
-}
+          <div class="row two-col">
+            <label class="field">
+              <span>Perfil</span>
+              <select name="profile_name" id="profile_name">
+                <option>Bambu X1C</option>
+                <option>Bambu P1S</option>
+                <option>Bambu A1</option>
+              </select>
+            </label>
 
-.panel {
-  background: #12242d;
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  padding: 28px;
-}
+            <button type="submit">Validar e preparar</button>
+          </div>
+        </form>
 
-.field {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 18px;
-  gap: 8px;
-}
+        <section id="summary" class="summary hidden"></section>
+      </main>
+    </div>
 
-.field span {
-  font-weight: 600;
-}
-
-input, select, button {
-  border-radius: 12px;
-  border: 1px solid #2c5164;
-  background: #0a1a22;
-  color: #ecf5ff;
-  padding: 12px 14px;
-  font-size: 16px;
-}
-
-button {
-  background: linear-gradient(135deg, #1b8ae8 0%, #44d7b6 100%);
-  border: none;
-  cursor: pointer;
-  font-weight: 700;
-  min-height: 48px;
-}
-
-.row {
-  display: flex;
-  gap: 16px;
-}
-
-.two-col > * {
-  flex: 1;
-}
-
-.summary {
-  margin-top: 24px;
-  background: #0d1c25;
-  border: 1px solid #2d5568;
-  border-radius: 16px;
-  padding: 20px;
-}
-
-.hidden {
-  display: none;
-}
-
-.summary h2 {
-  margin-top: 0;
-}
-
-ul {
-  padding-left: 20px;
-}
-
-pre {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
+    <script src="/static/app.js"></script>
+  </body>
+</html>
 
