@@ -1,0 +1,75 @@
+# Agente 3D
+
+Sistema web para validação geométrica, reparo automático de malha e preparação de pacote de impressão com foco em perfis Bambu Studio.
+
+## Objetivo
+
+Esse projeto automatiza a etapa inicial da preparação de modelos 3D para impressão:
+
+- validação do modelo 3D
+- diagnóstico de watertightness/manifold
+- heurísticas de reparo básico
+- configuração de perfil Bambu (PLA/PETG/ABS/ASA)
+- geração de manifesto de impressão
+- prontos para envio ao fatiador final
+
+## O que ele faz
+
+- aceita arquivo STL, OBJ ou 3MF
+- analisa a malha com `trimesh`
+- tenta reparar falhas de geometria
+- calcula volume e limites da peça
+- gera recomendações de impressão e perfil Bambu
+- exporta um `manifest.json` com configurações e recomendações
+
+## Importante
+
+Este projeto NÃO substitui o Bambu Studio oficial como fatiador final.
+Ele produz uma camada de validação, reparo e preparação de configuração compatível com perfis de impressora. Para a etapa final de slicing, o arquivo deve ser aberto no Bambu Studio e enviado para a impressora usando os parâmetros gerados.
+
+## Estrutura
+
+- `app.py` - aplicação FastAPI
+- `src/mesh_validator.py` - análise geométrica e regras de impressão
+- `static/` - front-end web
+- `templates/` - UI da aplicação
+- `output/` - arquivos de processamento e manifests
+
+## Como rodar
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Acesse:
+
+- `http://localhost:8000`
+
+## API
+
+### Upload + processamento
+
+```bash
+curl -X POST "http://localhost:8000/api/process" \
+  -F "file=@modelo.stl" \
+  -F "material=PLA" \
+  -F "nozzle_mm=0.4" \
+  -F "profile_name=Bambu X1C"
+```
+
+## Observações reais de impressão
+
+- partes com malha não fechada devem ser reparadas antes de imprimir
+- perfis reais dependem da impressora, material, nozzle e ambiente
+- um arquivo em 3MF compatível com Bambu Studio ainda exige ajuste final manual
+
+## Futuras evoluções
+
+- integração com slicer real via CLI e API local
+- visualização 3D em navegador
+- export direto de pacote `.3mf`
+- agente MCP para outros fluxos de automação
+

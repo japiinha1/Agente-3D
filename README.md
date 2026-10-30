@@ -1,2 +1,7 @@
-# Agente-3D
-Sistema web para validação geométrica, reparo de mesh e checagem final para impressão 3D com foco em Bambu Studio
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+trimesh==4.4.9
+numpy==2.1.3
+jinja2==3.1.4
+

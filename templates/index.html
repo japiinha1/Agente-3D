@@ -1,0 +1,53 @@
+const form = document.getElementById('upload-form');
+const summary = document.getElementById('summary');
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const formData = new FormData(form);
+  const fileInput = document.getElementById('file');
+
+  if (!fileInput.files.length) {
+    alert('Selecione um arquivo.');
+    return;
+  }
+
+  summary.classList.remove('hidden');
+  summary.innerHTML = '<p>Validando arquivo e preparando pacote de impressão...</p>';
+
+  const response = await fetch('/api/process', {
+    method: 'POST',
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    summary.innerHTML = `<h2>Erro</h2><p>${data.detail || 'Falha ao processar o arquivo.'}</p>`;
+    return;
+  }
+
+  const readyText = data.is_ready ? 'Pronto para revisão no Bambu Studio' : 'Requer revisão antes da impressão';
+
+  summary.innerHTML = `
+    <h2>Resumo do processamento</h2>
+    <p><strong>Status:</strong> ${readyText}</p>
+    <p><strong>Material:</strong> ${data.material}</p>
+    <p><strong>Perfil:</strong> ${data.profile.machine}</p>
+    <h3>Geometria</h3>
+    <ul>
+      <li>Watertight: ${data.analysis.is_watertight}</li>
+      <li>Manifold: ${data.analysis.is_manifold}</li>
+      <li>Volume: ${data.analysis.volume}</li>
+      <li>Faces: ${data.analysis.face_count}</li>
+    </ul>
+    <h3>Recomendações</h3>
+    <ul>
+      ${data.checks.recommendations.map((item) => `<li>${item}</li>`).join('') || '<li>Sem recomendações específicas.</li>'}
+    </ul>
+    <h3>Configuração Bambu</h3>
+    <pre>${JSON.stringify(data.profile, null, 2)}</pre>
+    <p><strong>Manifesto:</strong> ${data.manifest_path}</p>
+  `;
+});
+
