@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -13,12 +13,20 @@ from src.mesh_validator import BambuRules, MeshValidator, PrintPackageBuilder
 
 app = FastAPI(title="Agente 3D", version="0.1.0")
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATE_DIR = BASE_DIR / "templates"
+
+if not STATIC_DIR.exists():
+    STATIC_DIR.mkdir(parents=True, exist_ok=True)
+if not TEMPLATE_DIR.exists():
+    TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -65,8 +73,8 @@ async def process_model(
             repaired_path = None
 
     config = BambuRules.choose_profile(material, nozzle_mm, profile_name)
-    checks = BambuRules.build_print_checks(analysis, material, nozzle_mm)
-    manifest = PrintPackageBuilder.build_manifest(file.filename, analysis, checks["profile"])
+    checks = BambuRules.build_print_report(analysis, material, nozzle_mm, profile_name)
+    manifest = PrintPackageBuilder.build_manifest(file.filename, analysis, checks)
     manifest_path = upload_dir / f"{Path(file.filename).stem}_manifest.json"
     PrintPackageBuilder.write_manifest(manifest_path, manifest)
 
@@ -80,7 +88,7 @@ async def process_model(
         "manifest_path": str(manifest_path),
         "repaired_file": str(repaired_path) if repaired_path else None,
         "recommendations": checks["recommendations"],
-        "is_ready": checks["status"] == "ready",
+        "is_ready": checks["status"] == "READY_FOR_REVIEW",
     }
 
     return JSONResponse(content=response)
@@ -94,8 +102,15 @@ async def get_manifest(name: str):
     return JSONResponse(content=json.loads(manifest_path.read_text(encoding="utf-8")))
 
 
+@app.get("/api/download/{name}")
+async def download_file(name: str):
+    path = OUTPUT_DIR / "uploads" / name
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+    return FileResponse(path)
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
-
+    uvicorn.run("app:app", host="0.0.0.0", port=10000, reload=True)
