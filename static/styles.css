@@ -180,6 +180,7 @@ form.addEventListener('submit', async (event) => {
 
     <p><strong>Manifesto:</strong> ${data.manifest_path}</p>
     ${data.prepared_3mf ? `<p><strong>Arquivo preparado:</strong> <a href="/api/download/${encodeURIComponent(data.prepared_3mf.split('/').pop())}" target="_blank">Baixar 3MF</a></p>` : ''}
+    ${data.prepared_stl ? `<p><strong>Arquivo preparado:</strong> <a href="/api/download/${encodeURIComponent(data.prepared_stl.split('/').pop())}" target="_blank">Baixar STL</a></p>` : ''}
   `;
 });
 

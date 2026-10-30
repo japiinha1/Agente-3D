@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from src.mesh_validator import BambuRules, MeshValidator, PrintPackageBuilder
 
-app = FastAPI(title="Agente 3D Pro", version="1.2.0")
+app = FastAPI(title="Agente 3D Pro", version="1.3.0")
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
@@ -38,10 +38,12 @@ def _save_file(file: UploadFile, target_dir: Path) -> Path:
     return target_path
 
 
+def _safe_str(value: Any) -> str:
+    return str(value) if value is not None else ""
+
+
 def _try_export_3mf(source: Path, target_dir: Path, stem: str) -> Path | None:
     try:
-        import trimesh
-
         mesh = MeshValidator.load_mesh(source)
         if mesh is None:
             return None
@@ -67,7 +69,6 @@ async def process_model(
         raise HTTPException(status_code=400, detail="Formato inválido. Use STL, OBJ ou 3MF.")
 
     upload_dir = OUTPUT_DIR / "uploads"
-    upload_dir.mkdir(parents=True, exist_ok=True)
     original_path = _save_file(file, upload_dir)
 
     analysis = MeshValidator.analyze(original_path)
@@ -90,6 +91,15 @@ async def process_model(
     PrintPackageBuilder.write_manifest(manifest_path, manifest_payload)
 
     export_3mf = _try_export_3mf(repaired_source, upload_dir, Path(file.filename).stem)
+    export_stl = None
+    if export_3mf is None:
+        try:
+            export_stl = upload_dir / f"{Path(file.filename).stem}_prepared.stl"
+            mesh = MeshValidator.load_mesh(repaired_source)
+            if mesh is not None:
+                mesh.export(str(export_stl))
+        except Exception:
+            export_stl = None
 
     response = {
         "status": "processed",
@@ -100,6 +110,7 @@ async def process_model(
         "manifest_path": str(manifest_path),
         "repaired_file": str(repaired_path) if repaired_path else None,
         "prepared_3mf": str(export_3mf) if export_3mf else None,
+        "prepared_stl": str(export_stl) if export_stl else None,
         "is_ready": print_report["status"] == "READY_FOR_REVIEW",
     }
 
@@ -125,5 +136,5 @@ async def download_file(name: str):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=10000, reload=True)
 
